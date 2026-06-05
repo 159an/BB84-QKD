@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BB84 量子密钥分发 — 交互教学演示</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.10.0/dist/mermaid.min.js"
+  integrity="sha384-PY+AFiXLIHkR5jE4nk0JwPQQmmQlT4mJXFlgeT4jJeuARaBQBK+nSwwxzrPRAtUM"
+  crossorigin="anonymous"
+  onerror="window.mermaidLoadFailed=true"></script>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   CSS VARIABLES & THEME
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  --bg-deep: #080812;
+  --bg-card: #12122a;
+  --bg-card-hover: #181838;
+  --border: #1e1e3f;
+  --border-active: #2a2a5a;
+  --text-primary: #e8e8f0;
+  --text-secondary: #9090b0;
+  --text-muted: #606080;
+  --cyan: #00d4ff;
+  --cyan-dim: #006080;
+  --gold: #ffd54f;
+  --gold-dim: #5a4a10;
+  --alice: #ff6b4a;
+  --alice-dim: #4a1a10;
+  --bob: #4ae08e;
+  --bob-dim: #104020;
+  --eve: #c74aff;
+  --eve-dim: #2a1040;
+  --success: #00e676;
+  --warning: #ffab00;
+  --danger: #ff3d4f;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 17px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CANVAS BACKGROUND
+   ══════════════════════════════════════════════════════════════ */
+#bg-canvas {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 0; pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   NAVIGATION
+   ══════════════════════════════════════════════════════════════ */
+.top-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 56px;
+  background: rgba(8,8,18,0.85); backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 1.05rem; color: var(--cyan);
+  letter-spacing: 0.02em;
+}
+.nav-brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+.nav-links { display: flex; gap: 4px; }
+.nav-links button {
+  background: none; border: 1px solid transparent; color: var(--text-secondary);
+  padding: 8px 18px; border-radius: 8px; cursor: pointer;
+  font-size: 0.92rem; font-family: var(--font-sans);
+  transition: var(--transition);
+}
+.nav-links button:hover { color: var(--text-primary); background: var(--bg-card); }
+.nav-links button.active { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(0,212,255,0.08); }
+.nav-actions { display: flex; gap: 8px; align-items: center; }
+.nav-actions button, .nav-actions label {
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary);
+  padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  font-size: 0.82rem; font-family: var(--font-sans);
+  transition: var(--transition);
+}
+.nav-actions button:hover { border-color: var(--border-active); color: var(--text-primary); }
+.mode-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.mode-toggle input { display: none; }
+.mode-toggle .switch {
+  width: 38px; height: 22px; background: var(--border); border-radius: 11px;
+  position: relative; transition: var(--transition);
+}
+.mode-toggle .switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%; background: var(--text-secondary);
+  transition: var(--transition);
+}
+.mode-toggle input:checked + .switch { background: var(--cyan-dim); }
+.mode-toggle input:checked + .switch::after { left: 19px; background: var(--cyan); }
+
+/* ══════════════════════════════════════════════════════════════
+   VIEW CONTAINERS
+   ══════════════════════════════════════════════════════════════ */
+.view { display: none; position: relative; z-index: 1; padding-top: 56px; }
+.view.active { display: block; }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+/* ══════════════════════════════════════════════════════════════
+   HOME PAGE
+   ══════════════════════════════════════════════════════════════ */
+.home-hero {
+  text-align: center; padding: 80px 24px 48px;
+  position: relative;
+}
+.home-glow {
+  position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.15; pointer-events: none;
+}
+.home-glow-1 { width: 500px; height: 500px; background: var(--cyan); top: -100px; left: 50%; transform: translateX(-50%); }
+.home-glow-2 { width: 300px; height: 300px; background: var(--alice); bottom: 50px; left: 10%; }
+.home-glow-3 { width: 300px; height: 300px; background: var(--bob); bottom: 50px; right: 10%; }
+.home-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--cyan); font-size: 0.9rem; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.home-eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.home-hero h1 { font-size: 2.8rem; font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+.home-hero h1 em { font-style: normal; background: linear-gradient(135deg, var(--cyan), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.home-hero .subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px; }
+.home-cta {
+  display: inline-flex; gap: 12px;
+}
+.home-cta button {
+  padding: 14px 32px; border-radius: 10px; font-size: 1rem; font-weight: 600;
+  cursor: pointer; font-family: var(--font-sans); transition: var(--transition);
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--cyan), #0090cc);
+  border: none; color: #000;
+}
+.btn-primary:hover { box-shadow: 0 0 30px rgba(0,212,255,0.3); transform: translateY(-2px); }
+.btn-secondary {
+  background: transparent; border: 1px solid var(--border-active); color: var(--text-primary);
+}
+.btn-secondary:hover { border-color: var(--cyan); background: rgba(0,212,255,0.06); }
+
+/* Feature cards */
+.home-features {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px; max-width: 1000px; margin: 0 auto 48px;
+}
+.feature-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+  transition: var(--transition);
+}
+.feature-card:hover { border-color: var(--border-active); transform: translateY(-2px); }
+.feature-card .icon { font-size: 1.8rem; margin-bottom: 12px; }
+.feature-card h3 { font-size: 1.05rem; margin-bottom: 6px; color: var(--text-primary); }
+.feature-card p { font-size: 0.85rem; color: var(--text-secondary); }
+
+/* ══════════════════════════════════════════════════════════════
+   WALKTHROUGH VIEW
+   ══════════════════════════════════════════════════════════════ */
+.walkthrough-wrap { max-width: 1100px; margin: 0 auto; }
+
+/* Progress bar */
+.progress-bar-wrap {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  padding: 16px 20px; background: var(--bg-card); border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.progress-bar-outer {
+  flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.progress-bar-inner {
+  height: 100%; background: linear-gradient(90deg, var(--cyan), var(--gold));
+  border-radius: 3px; transition: width 0.4s ease;
+}
+.progress-label { font-size: 0.88rem; color: var(--text-secondary); white-space: nowrap; min-width: 60px; }
+
+/* Scenario selector */
+.scenario-bar {
+  display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
+}
+.scenario-bar span { font-size: 0.82rem; color: var(--text-muted); margin-right: 4px; }
+.scenario-btn {
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text-secondary);
+  cursor: pointer; font-size: 0.8rem; font-family: var(--font-sans);
+  transition: var(--transition);
+}
+.scenario-btn:hover { border-color: var(--border-active); color: var(--text-primary); }
+.scenario-btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0,212,255,0.08); }
+
+/* Main walkthrough area */
+.walk-main {
+  display: grid; grid-template-columns: 1fr 2fr 1fr;
+  gap: 16px; margin-bottom: 16px; min-height: 360px;
+}
+.alice-panel, .bob-panel {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  display: flex; flex-direction: column;
+}
+.alice-panel { border-top: 3px solid var(--alice); }
+.bob-panel { border-top: 3px solid var(--bob); }
+.panel-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.panel-dot { width: 10px; height: 10px; border-radius: 50%; }
+.alice-dot { background: var(--alice); box-shadow: 0 0 8px var(--alice); }
+.bob-dot { background: var(--bob); box-shadow: 0 0 8px var(--bob); }
+.panel-header h3 { font-size: 1rem; font-weight: 700; }
+.panel-content { flex: 1; font-size: 0.85rem; color: var(--text-secondary); }
+.panel-content .bit-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.panel-content .bit-chip {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 0.8rem; font-family: var(--font-mono);
+  background: var(--bg-card-hover); border: 1px solid var(--border);
+  transition: var(--transition);
+}
+.panel-content .bit-chip.highlight { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 8px rgba(0,212,255,0.2); }
+.panel-content .label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block; }
+
+/* Channel area */
+.channel-area {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.channel-label {
+  font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.channel-track {
+  position: relative; width: 100%; height: 60px;
+  display: flex; align-items: center;
+}
+.channel-line {
+  position: absolute; top: 50%; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--alice-dim), var(--cyan-dim), var(--bob-dim));
+}
+.channel-eve-node {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--border-active);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; color: var(--text-muted);
+  transition: var(--transition);
+}
+.channel-eve-node.active {
+  border-color: var(--eve); border-style: solid; color: var(--eve);
+  box-shadow: 0 0 16px rgba(199,74,255,0.3);
+}
+.photon {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--cyan); box-shadow: 0 0 14px var(--cyan);
+  transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s, box-shadow 0.3s;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #000; font-weight: bold;
+  z-index: 5;
+}
+.photon.eve-intercepted { background: var(--eve); box-shadow: 0 0 14px var(--eve); }
+
+/* Eve controls */
+.eve-controls {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px;
+  padding: 8px 14px; background: rgba(199,74,255,0.06); border-radius: 8px;
+  border: 1px solid var(--eve-dim);
+}
+.eve-controls label { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.eve-controls input[type="checkbox"] { accent-color: var(--eve); width: 16px; height: 16px; }
+
+/* Step navigation */
+.step-nav {
+  display: flex; gap: 12px; justify-content: center; margin-bottom: 20px;
+}
+.step-nav button {
+  padding: 12px 28px; border-radius: 8px; font-size: 0.95rem; font-weight: 600;
+  cursor: pointer; font-family: var(--font-sans); transition: var(--transition);
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);
+}
+.step-nav button:hover:not(:disabled) { border-color: var(--cyan); }
+.step-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+.step-nav button.primary { background: var(--cyan); color: #000; border-color: var(--cyan); }
+.step-nav button.primary:hover:not(:disabled) { box-shadow: 0 0 20px rgba(0,212,255,0.3); }
+.auto-demo-btn { background: transparent; border: 1px solid var(--gold-dim); color: var(--gold); }
+.auto-demo-btn:hover { border-color: var(--gold); }
+.auto-demo-btn.playing { background: var(--gold-dim); animation: pulse-gold 1s infinite; }
+@keyframes pulse-gold { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* Explanation box */
+.explain-box {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 22px; margin-bottom: 16px;
+}
+.explain-box h4 { font-size: 1rem; color: var(--gold); margin-bottom: 6px; }
+.explain-box p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7; }
+
+/* Self-check question */
+.self-check {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 16px; overflow: hidden;
+}
+.self-check summary {
+  padding: 14px 20px; cursor: pointer; font-size: 0.9rem; color: var(--cyan);
+  font-weight: 500; list-style: none;
+}
+.self-check summary::-webkit-details-marker { display: none; }
+.self-check summary::before { content: '❓ '; margin-right: 6px; }
+.self-check .answer { padding: 0 20px 14px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7; }
+
+/* No-cloning animation */
+.no-clone-anim {
+  display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 120px; height: 60px; pointer-events: none; z-index: 10;
+}
+.no-clone-anim.show { display: block; }
+.no-clone-anim .clone-machine {
+  width: 100%; height: 100%; border: 2px dashed var(--danger);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  animation: shake 0.5s ease-in-out;
+}
+.no-clone-anim .clone-machine span { color: var(--danger); font-size: 0.8rem; font-weight: 700; }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* Data table */
+.data-table-wrap {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; overflow-x: auto;
+  margin-bottom: 16px;
+}
+.data-table-wrap h4 { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 10px; }
+.data-table {
+  width: 100%; border-collapse: collapse; font-size: 0.82rem; font-family: var(--font-mono);
+}
+.data-table th, .data-table td {
+  padding: 6px 10px; text-align: center; border-bottom: 1px solid var(--border);
+}
+.data-table th { color: var(--text-muted); font-weight: 500; font-size: 0.75rem; white-space: nowrap; }
+.data-table td { color: var(--text-secondary); }
+.data-table tr.match-yes td:last-child { color: var(--success); }
+.data-table tr.match-no td:last-child { color: var(--danger); }
+.data-table .col-hidden { opacity: 0.2; }
+.data-table .col-new { color: var(--cyan); animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ══════════════════════════════════════════════════════════════
+   SUMMARY VIEW
+   ══════════════════════════════════════════════════════════════ */
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.summary-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+}
+.summary-card.full { grid-column: 1 / -1; }
+.summary-card h3 { font-size: 1.1rem; margin-bottom: 14px; color: var(--text-primary); }
+
+/* QBER Gauge */
+.qber-gauge { text-align: center; }
+.qber-gauge svg { max-width: 240px; }
+.qber-value { font-size: 2.4rem; font-weight: 800; font-family: var(--font-mono); }
+.qber-value.safe { color: var(--success); }
+.qber-value.warning { color: var(--warning); }
+.qber-value.danger { color: var(--danger); }
+.qber-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+/* Translation table */
+.trans-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.trans-table th, .trans-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+.trans-table th { color: var(--cyan); font-weight: 600; }
+.trans-table td { color: var(--text-secondary); }
+.trans-table tr:hover td { background: rgba(0,212,255,0.03); }
+
+/* Mermaid chart */
+.mermaid-chart { display: flex; justify-content: center; overflow-x: auto; padding: 16px; }
+.mermaid-chart pre { background: transparent !important; }
+
+/* ══════════════════════════════════════════════════════════════
+   MODALS
+   ══════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7); z-index: 200;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal-box {
+  background: var(--bg-card); border: 1px solid var(--border-active);
+  border-radius: var(--radius); padding: 32px; max-width: 640px;
+  max-height: 80vh; overflow-y: auto; position: relative;
+}
+.modal-close {
+  position: absolute; top: 12px; right: 16px;
+  background: none; border: none; color: var(--text-muted);
+  font-size: 1.4rem; cursor: pointer;
+}
+.modal-close:hover { color: var(--text-primary); }
+.modal-box h3 { font-size: 1.3rem; margin-bottom: 16px; color: var(--cyan); }
+.modal-box p { font-size: 0.92rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.7; }
+.modal-box .pol-demo { display: flex; gap: 20px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
+.modal-box .pol-item { text-align: center; }
+.modal-box .pol-arrow { font-size: 3rem; display: block; }
+.modal-box .pol-desc { font-size: 0.82rem; color: var(--text-muted); margin-top: 6px; }
+
+/* ══════════════════════════════════════════════════════════════
+   PRINT PAGE
+   ══════════════════════════════════════════════════════════════ */
+#print-page {
+  display: none; background: #fff; color: #111; padding: 40px;
+  font-family: 'Times New Roman', serif; line-height: 1.8;
+  max-width: 800px; margin: 0 auto;
+}
+#print-page h1 { font-size: 1.6rem; margin-bottom: 16px; color: #000; }
+#print-page h2 { font-size: 1.3rem; margin: 24px 0 12px; color: #222; }
+#print-page p, #print-page li { font-size: 0.95rem; margin-bottom: 8px; }
+#print-page table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+#print-page th, #print-page td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; font-size: 0.85rem; }
+#print-page .no-print-btn { position: fixed; top: 16px; right: 16px; padding: 8px 16px; background: #333; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  html { font-size: 15px; }
+  .walk-main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .summary-grid { grid-template-columns: 1fr; }
+  .home-hero h1 { font-size: 2rem; }
+  .nav-links button { padding: 6px 10px; font-size: 0.8rem; }
+  .data-table { font-size: 0.7rem; }
+  .data-table th, .data-table td { padding: 4px 6px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PRINT STYLES
+   ══════════════════════════════════════════════════════════════ */
+@media print {
+  #bg-canvas, .top-nav, .view:not(#print-page), .modal-overlay { display: none !important; }
+  #print-page { display: block !important; }
+  .no-print-btn { display: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUT HINT
+   ══════════════════════════════════════════════════════════════ */
+.shortcut-hint {
+  position: fixed; bottom: 16px; right: 16px; z-index: 50;
+  padding: 8px 14px; background: rgba(0,0,0,0.6); border-radius: 6px;
+  font-size: 0.7rem; color: var(--text-muted);
+  pointer-events: none; opacity: 0; transition: opacity 0.5s;
+}
+.shortcut-hint.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+  CANVAS BACKGROUND
+  ═════════════════════════════════════════════════════════════ -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- ═══════════════════════════════════════════════════════════
+  TOP NAVIGATION
+  ═════════════════════════════════════════════════════════════ -->
+<nav class="top-nav" id="top-nav">
+  <div class="nav-brand"><span class="dot"></span>天目启航 · QKD</div>
+  <div class="nav-links">
+    <button data-view="home" class="active">首页概览</button>
+    <button data-view="walkthrough">BB84 分步走读</button>
+    <button data-view="summary">安全分析</button>
+  </div>
+  <div class="nav-actions">
+    <label class="mode-toggle" title="切换演示/学习模式">
+      <input type="checkbox" id="mode-switch" checked>
+      <span class="switch"></span>
+      <span style="font-size:0.75rem;color:var(--text-muted)">演示</span>
+    </label>
+    <button onclick="BB84App.openPolarizationTutorial()" title="偏振速览">📐 偏振入门</button>
+    <button onclick="BB84App.printFriendly()" title="打印友好版 (快捷键 P)">🖨️</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+  VIEW 1: HOME
+  ═════════════════════════════════════════════════════════════ -->
+<div id="view-home" class="view active">
+  <div class="container">
+    <div class="home-hero">
+      <div class="home-glow home-glow-1"></div>
+      <div class="home-glow home-glow-2"></div>
+      <div class="home-glow home-glow-3"></div>
+      <p class="home-eyebrow"><span class="dot"></span>量子密钥分发 × 交互教学</p>
+      <h1>破解密码危机<br><em>量子密钥的承诺</em></h1>
+      <p class="subtitle">当量子计算机威胁传统密码体系，BB84 协议用物理定律而非数学难题，为通信安全提供了"无条件安全"的解决方案。</p>
+      <div class="home-cta">
+        <button class="btn-primary" onclick="BB84App.showView('walkthrough')">🔬 开始探索 BB84</button>
+        <button class="btn-secondary" onclick="BB84App.openPolarizationTutorial()">📐 先了解偏振</button>
+      </div>
+    </div>
+    <div class="home-features">
+      <div class="feature-card">
+        <div class="icon">🔢</div>
+        <h3>8 步协议走读</h3>
+        <p>从 Alice 制备量子态到最终安全密钥，逐步展示 BB84 完整工作流程</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🕵️</div>
+        <h3>Eve 窃听回放</h3>
+        <p>开启 Eve 后重新运行协议，直观对比窃听对密钥安全的影响</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📊</div>
+        <h3>实时 QBER 分析</h3>
+        <p>可视化量子比特误码率，安全阈值一目了然</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🎬</div>
+        <h3>自动演示模式</h3>
+        <p>一键自动播放完整 BB84 协议流程</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+  VIEW 2: WALKTHROUGH
+  ═════════════════════════════════════════════════════════════ -->
+<div id="view-walkthrough" class="view">
+  <div class="container walkthrough-wrap">
+    <!-- Progress bar -->
+    <div class="progress-bar-wrap">
+      <span class="progress-label" id="step-label">步骤 1/8</span>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar" style="width:12.5%"></div></div>
+    </div>
+    <!-- Scenario selector -->
+    <div class="scenario-bar" id="scenario-bar">
+      <span>预设场景：</span>
+      <button class="scenario-btn active" data-scenario="ideal">🟢 理想通信</button>
+      <button class="scenario-btn" data-scenario="eve_full">🔴 Eve 全拦截</button>
+      <button class="scenario-btn" data-scenario="eve_partial">🟡 Eve 30%拦截</button>
+      <button class="scenario-btn" data-scenario="noisy">⚪ 信道噪声</button>
+    </div>
+    <!-- Alice-Channel-Bob -->
+    <div class="walk-main" id="walk-main">
+      <div class="alice-panel" id="alice-panel">
+        <div class="panel-header"><span class="panel-dot alice-dot"></span><h3>Alice · 发送方</h3></div>
+        <div class="panel-content" id="alice-content">
+          <span class="label">等待数据生成...</span>
+        </div>
+      </div>
+      <div class="channel-area" id="channel-area">
+        <div class="channel-label">量子信道</div>
+        <div class="channel-track">
+          <div class="channel-line"></div>
+          <div class="channel-eve-node" id="eve-node">Eve</div>
+          <div class="photon" id="photon" style="left:5%">→</div>
+        </div>
+        <div class="no-clone-anim" id="no-clone-anim">
+          <div class="clone-machine"><span>⚠ 无法克隆</span></div>
+        </div>
+        <div class="eve-controls" id="eve-controls" style="display:none">
+          <label><input type="checkbox" id="eve-toggle" onchange="BB84App.toggleEve()"> 启用窃听者 Eve</label>
+        </div>
+      </div>
+      <div class="bob-panel" id="bob-panel">
+        <div class="panel-header"><span class="panel-dot bob-dot"></span><h3>Bob · 接收方</h3></div>
+        <div class="panel-content" id="bob-content">
+          <span class="label">等待测量...</span>
+        </div>
+      </div>
+    </div>
+    <!-- Data table -->
+    <div class="data-table-wrap" id="data-table-wrap">
+      <h4>📋 协议数据表</h4>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="data-table"><thead><tr><th>#</th><th>Alice 比特</th><th>Alice 基</th><th>量子态</th><th>Bob 基</th><th>Bob 结果</th><th>匹配?</th></tr></thead><tbody id="data-table-body"><tr><td colspan="7" style="color:var(--text-muted)">运行协议后将显示数据...</td></tr></tbody></table>
+      </div>
+    </div>
+    <!-- Explanation -->
+    <div class="explain-box" id="explain-box">
+      <h4 id="explain-title">准备开始</h4>
+      <p id="explain-text">点击"下一步"开始 BB84 协议的逐步走读，或点击"自动演示"一键播放完整流程。</p>
+    </div>
+    <!-- Self-check -->
+    <details class="self-check" id="self-check" open>
+      <summary id="self-check-q">为什么量子密钥分发被称为"无条件安全"？</summary>
+      <div class="answer" id="self-check-a">量子密钥分发的安全性基于量子力学的基本原理（不可克隆定理、测量坍缩），而非数学问题的计算复杂度。这意味着即使攻击者拥有无限算力，也无法破解量子密钥分发——安全性由物理定律保证，不依赖于任何未证明的数学假设。</div>
+    </details>
+    <!-- Navigation -->
+    <div class="step-nav" id="step-nav">
+      <button id="btn-prev" disabled onclick="BB84App.prevStep()">← 上一步</button>
+      <button id="btn-auto" class="auto-demo-btn" onclick="BB84App.toggleAutoDemo()">▶ 自动演示</button>
+      <button id="btn-next" class="primary" onclick="BB84App.nextStep()">下一步 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+  VIEW 3: SUMMARY
+  ═════════════════════════════════════════════════════════════ -->
+<div id="view-summary" class="view">
+  <div class="container">
+    <h2 style="text-align:center;margin-bottom:24px;font-size:1.6rem;">🔐 安全分析与总结</h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <h3>QBER 量子比特误码率</h3>
+        <div class="qber-gauge">
+          <svg viewBox="0 0 200 120" id="qber-svg">
+            <defs>
+              <linearGradient id="qberGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#00e676"/>
+                <stop offset="45%" stop-color="#ffab00"/>
+                <stop offset="100%" stop-color="#ff3d4f"/>
+              </linearGradient>
+            </defs>
+            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#qberGrad)" stroke-width="16" stroke-linecap="round"/>
+            <line id="qber-needle" x1="100" y1="100" x2="100" y2="30" stroke="#fff" stroke-width="3" stroke-linecap="round" transform="rotate(-90,100,100)"/>
+            <circle cx="100" cy="100" r="6" fill="#fff"/>
+            <text x="20" y="115" fill="#888" font-size="10">0%</text>
+            <text x="90" y="115" fill="#888" font-size="10">11%</text>
+            <text x="155" y="115" fill="#888" font-size="10">25%</text>
+            <line x1="100" y1="24" x2="100" y2="30" stroke="#ffab00" stroke-width="2" stroke-dasharray="3,3"/>
+          </svg>
+          <div class="qber-value safe" id="qber-display">0.0%</div>
+          <div class="qber-label" id="qber-status">✅ 安全 — 未检测到窃听</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <h3>传统加密 vs 量子密钥分发</h3>
+        <table class="trans-table">
+          <tr><th>维度</th><th>传统加密 (RSA)</th><th>量子密钥分发 (BB84)</th></tr>
+          <tr><td>安全根基</td><td>大整数分解的数学难度</td><td>量子力学物理定律</td></tr>
+          <tr><td>量子计算威胁</td><td>Shor 算法可多项式时间破解</td><td>理论上免疫任何算力攻击</td></tr>
+          <tr><td>窃听检测</td><td>无法检测被动窃听</td><td>必然留下可测量痕迹</td></tr>
+          <tr><td>密钥分发</td><td>需要事先共享或可信第三方</td><td>实时协商，无需事先共享秘密</td></tr>
+          <tr><td>成熟度</td><td>已广泛部署数十年</td><td>仍处于工程化推进阶段</td></tr>
+        </table>
+      </div>
+      <div class="summary-card full">
+        <h3>🔄 知识转译对照表 — 物理概念的可视化表达</h3>
+        <table class="trans-table">
+          <tr><th>物理概念</th><th>网站中的表达</th><th>通俗理解</th></tr>
+          <tr><td>偏振态</td><td>SVG 方向箭头 (→↑↗↘)</td><td>"光子的振动方向"，像绳子抖动的方向</td></tr>
+          <tr><td>编码基</td><td>⊕ 直线基 / ⊗ 对角基 图标</td><td>"Alice 和 Bob 约定好的两种密码本格式"</td></tr>
+          <tr><td>不可克隆定理</td><td>光子穿过复制机时破碎的动画</td><td>"Eve 无法偷偷复印密钥，一碰就坏"</td></tr>
+          <tr><td>基不匹配 → 随机结果</td><td>红色 ✗ 标记闪烁</td><td>"用错了密码本，看到的全是乱码"</td></tr>
+          <tr><td>测量坍缩</td><td>Eve 拦截时偏振方向随机变化</td><td>"看一眼就会改变它原本的样子"</td></tr>
+          <tr><td>QBER 误码率</td><td>三色半圆仪表盘 + 百分比</td><td>"安全温度计：绿色正常，红色有鬼"</td></tr>
+          <tr><td>筛选 (Sifting)</td><td>表格中 ✓✗ 匹配列</td><td>"对答案：密码本一样的才保留"</td></tr>
+          <tr><td>隐私放大</td><td>密钥长度缩减的可视化</td><td>"压缩密钥，把 Eve 可能知道的部分挤掉"</td></tr>
+        </table>
+      </div>
+      <div class="summary-card full mermaid-chart" id="mermaid-container">
+        <h3>BB84 协议全景流程图</h3>
+        <pre class="mermaid" id="mermaid-diagram">
+flowchart TD
+    A["Alice 准备"] --> B["随机生成比特序列"]
+    B --> C["随机选择编码基 ⊕ 或 ⊗"]
+    C --> D["制备偏振量子态并发送"]
+    D --> E["量子信道传输"]
+    E --> F["Bob 随机选择测量基"]
+    F --> G["测量量子态并记录"]
+    G --> H["经典信道比对编码基"]
+    H --> I{"基是否一致？"}
+    I -->|"一致"| J["保留该比特"]
+    I -->|"不一致"| K["丢弃该比特"]
+    J --> L["筛后密钥"]
+    K --> L
+    L --> M["窃听检测：抽样比对"]
+    M --> N{"QBER > 11%？"}
+    N -->|"是"| O["放弃密钥，重新开始"]
+    N -->|"否"| P["信息协调 + 隐私放大"]
+    P --> Q["最终安全密钥"]
+        </pre>
+        <div id="mermaid-fallback" style="display:none;padding:20px;text-align:center;color:var(--text-muted)">
+          <p>流程图加载中... 如持续无法显示，请检查网络连接。</p>
+          <p style="font-size:0.8rem">核心流程：Alice制备偏振态 → 量子信道 → Bob测量 → 基比对筛选 → 窃听检测 → 最终密钥</p>
+        </div>
+      </div>
+      <div class="summary-card full">
+        <h3>📚 参考来源与延伸阅读</h3>
+        <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.8">
+          Bennett, C. H., & Brassard, G. (1984). Quantum cryptography: Public key distribution and coin tossing. <em>Proceedings of IEEE International Conference on Computers, Systems and Signal Processing</em>, 175-179.<br>
+          Bennett, C. H., & Brassard, G. (2014). Quantum cryptography: Public key distribution and coin tossing. <em>Theoretical Computer Science</em>, 560, 7-11. (30周年重印)<br>
+          Shor, P. W. (1994). Algorithms for quantum computation: discrete logarithms and factoring. <em>Proceedings 35th Annual Symposium on Foundations of Computer Science</em>, 124-134.<br>
+          Gisin, N., Ribordy, G., Tittel, W., & Zbinden, H. (2002). Quantum cryptography. <em>Reviews of Modern Physics</em>, 74(1), 145.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+  POLARIZATION TUTORIAL MODAL
+  ═════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-pol">
+  <div class="modal-box">
+    <button class="modal-close" onclick="BB84App.closeModal('modal-pol')">✕</button>
+    <h3>📐 偏振速览 — 30 秒建立直觉</h3>
+    <p>光是一种电磁波，电场在空间中振动的方向叫做<strong>偏振方向</strong>。在 BB84 协议中，我们用光子的偏振方向来编码信息。</p>
+    <div class="pol-demo">
+      <div class="pol-item"><span class="pol-arrow" style="color:var(--cyan)">→</span><div class="pol-desc">水平偏振 |0⟩<br>比特 0，直线基</div></div>
+      <div class="pol-item"><span class="pol-arrow" style="color:var(--cyan)">↑</span><div class="pol-desc">垂直偏振 |1⟩<br>比特 1，直线基</div></div>
+      <div class="pol-item"><span class="pol-arrow" style="color:var(--gold)">↗</span><div class="pol-desc">45° 偏振 |+⟩<br>比特 0，对角基</div></div>
+      <div class="pol-item"><span class="pol-arrow" style="color:var(--gold)">↘</span><div class="pol-desc">135° 偏振 |−⟩<br>比特 1，对角基</div></div>
+    </div>
+    <p><strong>两种编码基：</strong></p>
+    <p>⊕ <strong>直线基 (Z 基)</strong>：用水平和垂直偏振编码，像在十字路口只能走直线。<br>
+    ⊗ <strong>对角基 (X 基)</strong>：用 45° 和 135° 偏振编码，像在十字路口走对角线。</p>
+    <p><strong>关键特性：</strong>如果用直线基去测量对角基编码的光子，结果完全随机——这就是量子力学不确定性原理的体现，也是 BB84 安全性的物理根基。</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+  PRINT PAGE (hidden, press P to show)
+  ═════════════════════════════════════════════════════════════ -->
+<div id="print-page">
+  <button class="no-print-btn" onclick="BB84App.hidePrint()">关闭打印页</button>
+  <h1>BB84 量子密钥分发协议 — 教学说明</h1>
+  <p>Bennett & Brassard (1984) 提出的 BB84 协议是量子密码学的基石。本页面提供协议的完整文字说明，适合打印或截图用于项目文档。</p>
+  <h2>协议流程</h2>
+  <ol>
+    <li><strong>Alice 生成随机比特：</strong>Alice 随机生成一串二进制比特（0 或 1），作为原始密钥素材。</li>
+    <li><strong>Alice 选择编码基：</strong>对每个比特，Alice 随机选择 ⊕（直线基）或 ⊗（对角基）进行编码。</li>
+    <li><strong>Alice 制备量子态：</strong>根据比特和基的组合，制备对应的偏振光子：0+⊕→→, 1+⊕→↑, 0+⊗→↗, 1+⊗→↘。</li>
+    <li><strong>量子信道传输：</strong>光子通过量子信道（如光纤）从 Alice 发送给 Bob。由于单光子不可克隆，窃听者无法完美复制。</li>
+    <li><strong>Bob 选择测量基：</strong>Bob 对每个到达的光子随机选择 ⊕ 或 ⊗ 基进行测量。</li>
+    <li><strong>基比对与筛选：</strong>Alice 和 Bob 通过经典公共信道公开比较他们使用的基（不公开比特值），保留基相同的比特，丢弃基不同的比特。</li>
+    <li><strong>窃听检测：</strong>双方随机抽样比对部分筛后密钥。如果存在窃听者 Eve，她无法同时正确测量两种基下的光子，会引入额外误码。当量子比特误码率（QBER）超过约 11% 时，表明信道不安全，需放弃密钥。</li>
+    <li><strong>最终安全密钥：</strong>通过信息协调（纠错）和隐私放大（压缩），从筛后密钥中提取最终的安全密钥。</li>
+  </ol>
+  <h2>安全性原理</h2>
+  <p>BB84 协议的安全性基于两条量子力学基本原理：</p>
+  <ul>
+    <li><strong>不可克隆定理：</strong>未知的量子态无法被完美复制。Eve 不能"偷偷复印"光子而不改变其状态。</li>
+    <li><strong>测量坍缩：</strong>对量子态的测量会不可逆地改变其状态。Eve 的窃听行为必然引入可检测的扰动。</li>
+  </ul>
+  <h2>关键参数</h2>
+  <table>
+    <tr><th>参数</th><th>含义</th><th>安全阈值</th></tr>
+    <tr><td>QBER</td><td>量子比特误码率</td><td>&lt; 11% (Shor-Preskill 界)</td></tr>
+    <tr><td>筛后密钥率</td><td>筛选后保留的比特比例</td><td>约 50%（基随机选择）</td></tr>
+    <tr><td>Eve 全拦截 QBER</td><td>Eve 截获所有光子时的误码率</td><td>约 25%</td></tr>
+  </table>
+</div>
+
+<div class="shortcut-hint" id="shortcut-hint">按 P 键打开打印友好页 | ← → 键控制步骤</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+  SCRIPTS PLACEHOLDER
+  ═════════════════════════════════════════════════════════════ -->
+<script>
+/* ════════════════════════════════════════════════════════════
+   CANVAS BACKGROUND - STARFIELD
+   ════════════════════════════════════════════════════════════ */
+(function() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const MAX_PARTICLES = 80;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  class Particle {
+    constructor() { this.reset(true); }
+    reset(init) {
+      this.x = Math.random() * canvas.width;
+      this.y = init ? Math.random() * canvas.height : -10;
+      this.size = Math.random() * 1.8 + 0.4;
+      this.speed = Math.random() * 0.4 + 0.1;
+      this.opacity = Math.random() * 0.5 + 0.2;
+      this.drift = (Math.random() - 0.5) * 0.3;
+    }
+    update() {
+      this.y += this.speed;
+      this.x += this.drift;
+      if (this.y > canvas.height + 10) { this.y = -10; this.x = Math.random() * canvas.width; }
+      if (this.x < -10) this.x = canvas.width + 10;
+      if (this.x > canvas.width + 10) this.x = -10;
+    }
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,200,255,${this.opacity})`;
+      ctx.fill();
+    }
+  }
+
+  for (let i = 0; i < MAX_PARTICLES; i++) particles.push(new Particle());
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(ctx); });
+    // Draw connecting lines for nearby particles
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 120) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(100,140,200,${0.06 * (1 - dist/120)})`;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+/* ════════════════════════════════════════════════════════════
+   BB84 SIMULATOR
+   ════════════════════════════════════════════════════════════ */
+class BB84Simulator {
+  constructor(numBits = 16) {
+    this.numBits = numBits;
+    this.reset();
+  }
+
+  reset() {
+    this.aliceBits = [];
+    this.aliceBases = [];
+    this.encodedStates = [];
+    this.bobBases = [];
+    this.bobResults = [];
+    this.eveActive = false;
+    this.eveStrategy = 'none';
+    this.eveFraction = 0;
+    this.eveBases = [];
+    this.eveResults = [];
+    this.eveResentStates = [];
+    this.noiseRate = 0;
+    this.siftedKeyAlice = [];
+    this.siftedKeyBob = [];
+    this.matchingIndices = [];
+    this.qber = 0;
+    this.finalKey = [];
+    this.step = 0;
+    this.stepData = { aliceBits: false, aliceBases: false, states: false, bobBases: false, bobResults: false, sifted: false, eveChecked: false, finalized: false };
+  }
+
+  configure(scenario) {
+    this.reset();
+    switch(scenario) {
+      case 'ideal':
+        this.eveActive = false; this.eveStrategy = 'none'; this.eveFraction = 0; this.noiseRate = 0;
+        break;
+      case 'eve_full':
+        this.eveActive = true; this.eveStrategy = 'intercept_resend'; this.eveFraction = 1.0; this.noiseRate = 0;
+        break;
+      case 'eve_partial':
+        this.eveActive = true; this.eveStrategy = 'intercept_resend'; this.eveFraction = 0.3; this.noiseRate = 0;
+        break;
+      case 'noisy':
+        this.eveActive = false; this.eveStrategy = 'none'; this.eveFraction = 0; this.noiseRate = 0.05;
+        break;
+    }
+  }
+
+  randomBit() { return Math.random() < 0.5 ? 0 : 1; }
+  randomBasis() { return Math.random() < 0.5 ? '+' : '×'; }
+
+  encode(bit, basis) {
+    if (basis === '+') return bit === 0 ? '→' : '↑';
+    else return bit === 0 ? '↗' : '↘';
+  }
+
+  measure(state, basis) {
+    const plusStates = { '→': 0, '↑': 1 };
+    const crossStates = { '↗': 0, '↘': 1 };
+    if (basis === '+' && state in plusStates) return plusStates[state];
+    if (basis === '×' && state in crossStates) return crossStates[state];
+    return this.randomBit(); // Wrong basis → random result
+  }
+
+  /* Step 1 */
+  generateAliceBits() {
+    this.aliceBits = Array.from({length: this.numBits}, () => this.randomBit());
+    this.step = 1; this.stepData.aliceBits = true;
+  }
+
+  /* Step 2 */
+  generateAliceBases() {
+    this.aliceBases = Array.from({length: this.numBits}, () => this.randomBasis());
+    this.step = 2; this.stepData.aliceBases = true;
+  }
+
+  /* Step 3 */
+  encodeStates() {
+    this.encodedStates = this.aliceBits.map((b, i) => this.encode(b, this.aliceBases[i]));
+    this.step = 3; this.stepData.states = true;
+  }
+
+  /* Step 4 - transmission (prepares Eve if active) */
+  transmit() {
+    if (this.eveActive) {
+      this.eveBases = Array.from({length: this.numBits}, () => this.randomBasis());
+      this.eveResults = [];
+      this.eveResentStates = [];
+      for (let i = 0; i < this.numBits; i++) {
+        if (this.eveStrategy === 'intercept_resend' && Math.random() < this.eveFraction) {
+          const result = this.measure(this.encodedStates[i], this.eveBases[i]);
+          this.eveResults.push(result);
+          this.eveResentStates.push(this.encode(result, this.eveBases[i]));
+        } else {
+          this.eveResults.push(null);
+          this.eveResentStates.push(this.encodedStates[i]); // Pass through
+        }
+      }
+    }
+    this.step = 4; this.stepData.bobBases = false;
+  }
+
+  /* Step 5 */
+  generateBobBases() {
+    this.bobBases = Array.from({length: this.numBits}, () => this.randomBasis());
+    this.step = 5; this.stepData.bobBases = true;
+  }
+
+  /* Step 6 - measure and sift */
+  measureAndSift() {
+    const statesToMeasure = this.eveActive ? this.eveResentStates : this.encodedStates;
+    this.bobResults = statesToMeasure.map((s, i) => {
+      let result = this.measure(s, this.bobBases[i]);
+      // Apply noise
+      if (Math.random() < this.noiseRate) result = 1 - result;
+      return result;
+    });
+    this.matchingIndices = [];
+    this.siftedKeyAlice = [];
+    this.siftedKeyBob = [];
+    for (let i = 0; i < this.numBits; i++) {
+      if (this.aliceBases[i] === this.bobBases[i]) {
+        this.matchingIndices.push(i);
+        this.siftedKeyAlice.push(this.aliceBits[i]);
+        this.siftedKeyBob.push(this.bobResults[i]);
+      }
+    }
+    this.step = 6; this.stepData.bobResults = true; this.stepData.sifted = true;
+  }
+
+  /* Step 7 - eavesdropping check */
+  eavesdropCheck(sampleFraction = 0.5) {
+    const sampleSize = Math.max(1, Math.floor(this.matchingIndices.length * sampleFraction));
+    if (this.matchingIndices.length === 0) { this.qber = 0; this.step = 7; this.stepData.eveChecked = true; return; }
+    const shuffled = [...this.matchingIndices].sort(() => Math.random() - 0.5);
+    const sample = shuffled.slice(0, sampleSize);
+    let errors = 0;
+    for (const idx of sample) {
+      if (this.aliceBits[idx] !== this.bobResults[idx]) errors++;
+    }
+    this.qber = errors / sample.length;
+    this.step = 7; this.stepData.eveChecked = true;
+  }
+
+  /* Step 8 - final key */
+  finalize() {
+    this.finalKey = this.siftedKeyBob.filter((_, i) => this.siftedKeyAlice[i] === this.siftedKeyBob[i]);
+    this.step = 8; this.stepData.finalized = true;
+  }
+
+  isSecure() { return this.qber < 0.11; }
+  siftedKeyLength() { return this.matchingIndices.length; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAIN APP CONTROLLER
+   ════════════════════════════════════════════════════════════ */
+const BB84App = {
+  sim: new BB84Simulator(16),
+  currentView: 'home',
+  currentStep: 1,
+  scenario: 'ideal',
+  eveActive: false,
+  autoTimer: null,
+  autoPlaying: false,
+  photonAnimating: false,
+
+  /* ── Init ── */
+  init() {
+    this.bindEvents();
+    this.showView('home');
+    this.initMermaid();
+    document.getElementById('eve-toggle').checked = false;
+    document.getElementById('mode-switch').checked = true;
+    this.applyMode();
+  },
+
+  initMermaid() {
+    if (window.mermaidLoadFailed) {
+      document.getElementById('mermaid-diagram').style.display = 'none';
+      document.getElementById('mermaid-fallback').style.display = 'block';
+      return;
+    }
+    try {
+      mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: 'dark' });
+    } catch(e) {
+      document.getElementById('mermaid-diagram').style.display = 'none';
+      document.getElementById('mermaid-fallback').style.display = 'block';
+    }
+    // Fallback after 3s if mermaid didn't render
+    setTimeout(() => {
+      const svg = document.querySelector('#mermaid-diagram svg');
+      if (!svg) {
+        document.getElementById('mermaid-diagram').style.display = 'none';
+        document.getElementById('mermaid-fallback').style.display = 'block';
+      }
+    }, 3000);
+  },
+
+  /* ── View Management ── */
+  showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const viewEl = document.getElementById('view-' + name);
+    if (viewEl) viewEl.classList.add('active');
+    document.querySelectorAll('.nav-links button').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === name);
+    });
+    this.currentView = name;
+    if (name === 'walkthrough') this.loadScenario(this.scenario);
+    if (name === 'summary') this.updateSummary();
+  },
+
+  /* ── Scenario ── */
+  loadScenario(name) {
+    this.scenario = name;
+    this.eveActive = (name === 'eve_full' || name === 'eve_partial');
+    this.sim.configure(name);
+    this.currentStep = 1;
+    this.sim.generateAliceBits();
+    this.sim.generateAliceBases();
+    this.sim.encodeStates();
+    this.sim.transmit();
+    this.sim.generateBobBases();
+    this.sim.measureAndSift();
+    this.sim.eavesdropCheck();
+    this.sim.finalize();
+    document.getElementById('eve-toggle').checked = this.eveActive;
+    document.getElementById('eve-controls').style.display = (this.currentStep >= 4) ? 'flex' : 'none';
+    document.querySelectorAll('.scenario-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.scenario === name);
+    });
+    this.goToStep(1);
+  },
+
+  /* ── Step Navigation ── */
+  goToStep(n) {
+    n = Math.max(1, Math.min(8, n));
+    this.currentStep = n;
+    this.renderStep();
+    this.updateProgress();
+    this.updateButtons();
+  },
+
+  nextStep() { if (this.currentStep < 8) this.goToStep(this.currentStep + 1); },
+  prevStep() { if (this.currentStep > 1) this.goToStep(this.currentStep - 1); },
+
+  /* ── Render Step ── */
+  renderStep() {
+    const s = this.currentStep;
+    this.updateAlicePanel(s);
+    this.updateBobPanel(s);
+    this.updateChannel(s);
+    this.updateDataTable(s);
+    this.updateExplanation(s);
+    this.updateSelfCheck(s);
+    document.getElementById('step-label').textContent = `步骤 ${s}/8`;
+    document.getElementById('eve-controls').style.display = (s >= 4) ? 'flex' : 'none';
+    // Animate photon on step 4
+    if (s === 4) this.animatePhoton();
+  },
+
+  updateAlicePanel(step) {
+    const el = document.getElementById('alice-content');
+    const bits = this.sim.aliceBits;
+    const bases = this.sim.aliceBases;
+    const states = this.sim.encodedStates;
+    if (!bits.length) { el.innerHTML = '<span class="label">等待数据生成...</span>'; return; }
+
+    let html = '';
+    // Bits row
+    html += '<span class="label">随机比特</span><div class="bit-row">';
+    bits.forEach((b, i) => {
+      const hl = step >= 1 ? ' highlight' : '';
+      html += `<span class="bit-chip${hl}">${b}</span>`;
+    });
+    html += '</div>';
+
+    // Bases row
+    if (step >= 2) {
+      html += '<span class="label">编码基</span><div class="bit-row">';
+      bases.forEach((b, i) => {
+        html += `<span class="bit-chip highlight">${b === '+' ? '⊕' : '⊗'}</span>`;
+      });
+      html += '</div>';
+    }
+
+    // States row
+    if (step >= 3) {
+      html += '<span class="label">偏振态</span><div class="bit-row">';
+      states.forEach((s, i) => {
+        const isZ = this.sim.aliceBases[i] === '+';
+        const color = isZ ? 'var(--cyan)' : 'var(--gold)';
+        html += `<span class="bit-chip highlight" style="color:${color};font-size:1.1rem">${s}</span>`;
+      });
+      html += '</div>';
+    }
+
+    // Encoding map
+    if (step >= 3) {
+      html += '<div style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);line-height:1.6">';
+      html += '编码规则：0+⊕→&nbsp;→&emsp;1+⊕→&nbsp;↑<br>';
+      html += '0+⊗→&nbsp;↗&emsp;1+⊗→&nbsp;↘';
+      html += '</div>';
+    }
+
+    el.innerHTML = html;
+  },
+
+  updateBobPanel(step) {
+    const el = document.getElementById('bob-content');
+    const bases = this.sim.bobBases;
+    const results = this.sim.bobResults;
+
+    if (step < 5) {
+      el.innerHTML = '<span class="label">等待 Alice 发送...</span>';
+      return;
+    }
+
+    let html = '<span class="label">测量基</span><div class="bit-row">';
+    bases.forEach((b, i) => {
+      html += `<span class="bit-chip highlight">${b === '+' ? '⊕' : '⊗'}</span>`;
+    });
+    html += '</div>';
+
+    if (step >= 6) {
+      html += '<span class="label">测量结果</span><div class="bit-row">';
+      results.forEach((r, i) => {
+        const match = this.sim.aliceBases[i] === this.sim.bobBases[i];
+        const color = match ? 'var(--success)' : 'var(--text-secondary)';
+        html += `<span class="bit-chip highlight" style="color:${color}">${r}</span>`;
+      });
+      html += '</div>';
+    }
+
+    if (step >= 6 && this.sim.matchingIndices.length > 0) {
+      html += `<div style="margin-top:10px;font-size:0.82rem;color:var(--success)">筛后密钥: ${this.sim.siftedKeyBob.join('')} (${this.sim.siftedKeyBob.length} bits)</div>`;
+    }
+
+    el.innerHTML = html;
+  },
+
+  updateChannel(step) {
+    const eveNode = document.getElementById('eve-node');
+    if (this.eveActive && step >= 4) {
+      eveNode.classList.add('active');
+      if (this.sim.eveFraction < 1.0) {
+        eveNode.textContent = `Eve ${Math.round(this.sim.eveFraction*100)}%`;
+      } else {
+        eveNode.textContent = 'Eve';
+      }
+    } else {
+      eveNode.classList.remove('active');
+      eveNode.textContent = 'Eve';
+    }
+    // Reset photon position
+    if (step !== 4) {
+      const photon = document.getElementById('photon');
+      photon.style.left = '5%';
+      photon.className = 'photon';
+      photon.textContent = '→';
+    }
+  },
+
+  updateDataTable(step) {
+    const tbody = document.getElementById('data-table-body');
+    const n = this.sim.numBits;
+    let rows = '';
+
+    for (let i = 0; i < n; i++) {
+      const aliceBit = this.sim.aliceBits[i] !== undefined ? this.sim.aliceBits[i] : '?';
+      const aliceBasis = this.sim.aliceBases[i] !== undefined ? (this.sim.aliceBases[i] === '+' ? '⊕' : '⊗') : '?';
+      const state = this.sim.encodedStates[i] !== undefined ? this.sim.encodedStates[i] : '?';
+      const bobBasis = this.sim.bobBases[i] !== undefined ? (this.sim.bobBases[i] === '+' ? '⊕' : '⊗') : '?';
+      const bobResult = this.sim.bobResults[i] !== undefined ? this.sim.bobResults[i] : '?';
+      const match = (this.sim.aliceBases[i] !== undefined && this.sim.bobBases[i] !== undefined)
+        ? (this.sim.aliceBases[i] === this.sim.bobBases[i] ? '✓' : '✗')
+        : '?';
+      const matchClass = match === '✓' ? 'match-yes' : (match === '✗' ? 'match-no' : '');
+
+      // Determine column visibility classes based on step
+      const colBit = step >= 1 ? '' : 'col-hidden';
+      const colABasis = step >= 2 ? 'col-new' : 'col-hidden';
+      const colState = step >= 3 ? 'col-new' : 'col-hidden';
+      const colBBasis = step >= 5 ? 'col-new' : 'col-hidden';
+      const colResult = step >= 6 ? 'col-new' : 'col-hidden';
+      const colMatch = step >= 6 ? 'col-new' : 'col-hidden';
+
+      rows += `<tr class="${matchClass}">`;
+      rows += `<td>${i+1}</td>`;
+      rows += `<td class="${colBit}">${aliceBit}</td>`;
+      rows += `<td class="${colABasis}">${aliceBasis}</td>`;
+      rows += `<td class="${colState}">${state}</td>`;
+      rows += `<td class="${colBBasis}">${bobBasis}</td>`;
+      rows += `<td class="${colResult}">${bobResult}</td>`;
+      rows += `<td class="${colMatch}">${match}</td>`;
+      rows += '</tr>';
+    }
+
+    tbody.innerHTML = rows;
+  },
+
+  updateExplanation(step) {
+    const titleEl = document.getElementById('explain-title');
+    const textEl = document.getElementById('explain-text');
+    const explanations = {
+      1: { title: '步骤 1：Alice 生成随机比特', text: 'Alice 首先生成一串随机的二进制比特（0 或 1）。这些比特将成为最终密钥的原材料。在这个演示中，我们使用 16 个比特。注意：这些比特是 Alice 随机产生的，没有任何规律——这是保证密钥安全的第一步。' },
+      2: { title: '步骤 2：Alice 选择编码基', text: 'Alice 为每个比特随机选择一种编码方式：⊕（直线基，用水平和垂直偏振）或 ⊗（对角基，用 45° 和 135° 偏振）。基的选择必须随机，因为如果 Eve 知道了编码基，她就能完美窃听而不被发现。<br><br>Alice 面板中现在同时显示了比特和编码基，绿色 ⊕ 代表直线基，金色 ⊗ 代表对角基。' },
+      3: { title: '步骤 3：Alice 编码量子态', text: 'Alice 根据比特值和编码基来制备光子的偏振态：<br>• 比特 0 + 直线基 → →（水平偏振 |0⟩）<br>• 比特 1 + 直线基 → ↑（垂直偏振 |1⟩）<br>• 比特 0 + 对角基 → ↗（45° 偏振 |+⟩）<br>• 比特 1 + 对角基 → ↘（135° 偏振 |−⟩）<br><br>这个映射关系是整个协议的核心。注意，同一个比特值（如 0）在不同基下对应完全不同的偏振方向——这种"非正交性"正是安全性的来源。<br><br><strong style="color:var(--danger)">❌ 不可克隆定理：</strong>由于单光子的量子态无法被完美复制，Eve 不能"复印"光子而不被发现。任何试图复制量子态的尝试都会不可逆地破坏原始态。' },
+      4: { title: '步骤 4：量子信道传输', text: 'Alice 将制备好的光子通过量子信道（如光纤）发送给 Bob。此时光子携带偏振信息在信道中传播。<br><br>如果 Eve 处于活动状态（开启窃听开关），她会截获光子、用自己的随机基测量、然后重新发送。由于 Eve 的基选择与 Alice 可能不同，她的测量会随机改变光子状态——这一扰动将在后续步骤中被检测到。<br><br>光子沿信道飞行的动画直观展示了偏振态的传输过程。' },
+      5: { title: '步骤 5：Bob 选择测量基', text: 'Bob 对收到的每个光子，也随机选择一个基（⊕ 或 ⊗）进行测量。Bob 的基选择完全独立于 Alice——双方没有任何事先约定。<br><br>Bob 面板现在显示了他的随机基选择。注意观察有多少个基和 Alice 的一致——理论上一半左右会匹配。<br><br><strong>关键点：</strong>如果 Bob 用对了基（与 Alice 相同），测量结果是确定的；如果他用错了基，测量结果完全随机——这就是量子力学的核心特性。' },
+      6: { title: '步骤 6：基比对与筛选', text: 'Alice 和 Bob 现在通过经典公共信道（如电话或互联网）公开比较他们各自使用的基——注意只公开基的选择，不公开比特值！<br><br>基相同的位置（表格中标记 ✓）：双方保留对应的比特 → 成为筛后密钥<br>基不同的位置（表格中标记 ✗）：双方丢弃对应的比特<br><br>在理想情况下，大约 50% 的比特会被保留。筛后密钥是 Alice 和 Bob 共享的秘密，但 Eve 不知道（因为她没有基信息时无法可靠测量）。选中行以绿色显示匹配成功。' },
+      7: { title: '步骤 7：窃听检测', text: 'Alice 和 Bob 从筛后密钥中随机抽取一部分比特，通过经典信道公开比对。如果这些比特完全相同，说明信道安全；如果出现差异（误码），则计算量子比特误码率（QBER）。<br><br><strong>安全判定：</strong><br>• QBER < 5%：安全（绿色），可能是自然噪声<br>• QBER 5-11%：可疑（黄色），需进一步分析<br>• QBER > 11%：不安全（红色），Eve 极可能正在窃听，应放弃密钥<br><br>当 Eve 拦截所有光子时，QBER 约 25%。这是因为 Eve 有 50% 概率选错基，选错基时有 50% 概率给出错误结果（0.5 × 0.5 = 0.25）。' },
+      8: { title: '步骤 8：最终安全密钥', text: '通过窃听检测后，Alice 和 Bob 对筛后密钥进行信息协调（纠正剩余的少量错误）和隐私放大（通过压缩密钥消除 Eve 可能获取的部分信息），最终获得无条件安全的共享密钥。<br><br>这个密钥可以用于后续的对称加密通信（如一次性密码本），实现理论上不可破解的安全通信。<br><br><strong>总结：</strong>BB84 协议证明，利用量子力学的基本原理——而非数学难题——可以实现无条件安全的密钥分发。在量子计算威胁传统密码体系的今天，QKD 代表了信息安全的未来方向。' }
+    };
+    const ex = explanations[step] || { title: '准备开始', text: '点击"下一步"开始 BB84 协议的逐步走读。' };
+    titleEl.textContent = '💡 ' + ex.title;
+    textEl.innerHTML = ex.text;
+  },
+
+  updateSelfCheck(step) {
+    const qEl = document.getElementById('self-check-q');
+    const aEl = document.getElementById('self-check-a');
+    const questions = {
+      1: { q: '为什么 Alice 生成的比特必须是随机的？', a: '如果比特有规律（如全是 0 或交替出现），Eve 可能猜出密钥模式。真正的随机性消除了任何可预测的结构，使密钥在信息论意义上安全。' },
+      2: { q: '为什么 Alice 需要随机选择两种基，而不是固定用一种？', a: '如果用固定基，Eve 知道后就能用相同基完美测量所有光子而不扰动它们。随机基选择使 Eve 有 50% 概率选错基——而选错基就会破坏光子状态，暴露窃听行为。' },
+      3: { q: '同一个比特值（比如 0）在不同基下为什么有不同的偏振方向？', a: '因为这正是"非正交基"的含义——两个基下的量子态不是简单的倍数关系。在直线基中，|0⟩ 是水平偏振；在对角基中，|+⟩ 是水平+垂直的叠加态。这种非正交性是量子力学的本质特征，也是 BB84 安全性的物理根源。' },
+      4: { q: '如果 Eve 试图复制光子而不测量它，会成功吗？', a: '不会。这就是"单光子不可克隆定理"的核心——未知的量子态无法被完美复制。Eve 唯一能获取信息的方式是测量光子，但测量本身会破坏量子态，留下痕迹。' },
+      5: { q: 'Bob 选错基时，测量结果为什么不可靠？', a: '非正交基测量在量子力学中产生完全随机的结果。例如，用直线基测量对角偏振的光子，有 50% 概率得到 0、50% 概率得到 1，与 Alice 原始比特无关。' },
+      6: { q: '为什么 Alice 和 Bob 公开比较基是安全的？Eve 听到了会怎样？', a: '基的选择不包含密钥信息——Eve 知道 Alice 用了 ⊕ 基，但她不知道编码的比特是 0 还是 1。密钥的安全性来自比特值的保密，而非基的保密。这就是 BB84 的精妙之处。' },
+      7: { q: 'Eve 全拦截时 QBER 为什么约 25% 而不是 50%？', a: 'Eve 选错基概率 50%，选错基时 Bob 得到错误结果的概率也是 50%（即使 Alice 和 Bob 的基匹配）。所以 Alice-Bob 基匹配的比特中，Eve 引入错误的概率 = 0.5 × 0.5 = 0.25。' },
+      8: { q: 'BB84 协议提供的是"无条件安全"，这是否意味着它绝对无法被攻破？', a: '"无条件安全"指安全性不依赖于计算复杂度假设（如"大整数分解很难"），而是由物理定律保证。但实际实现中，设备的不完美（如单光子源不纯、探测器效率等）可能引入侧信道漏洞。理论上的无条件安全和工程上的完美实现之间存在差距。' }
+    };
+    const q = questions[step];
+    if (q) {
+      qEl.textContent = '❓ ' + q.q;
+      aEl.textContent = q.a;
+      document.getElementById('self-check').style.display = '';
+    } else {
+      document.getElementById('self-check').style.display = 'none';
+    }
+  },
+
+  updateProgress() {
+    document.getElementById('progress-bar').style.width = ((this.currentStep / 8) * 100) + '%';
+  },
+
+  updateButtons() {
+    document.getElementById('btn-prev').disabled = this.currentStep <= 1;
+    document.getElementById('btn-next').textContent = this.currentStep >= 8 ? '完成 ✓' : '下一步 →';
+  },
+
+  /* ── Photon Animation ── */
+  animatePhoton() {
+    if (this.photonAnimating) return;
+    this.photonAnimating = true;
+    const photon = document.getElementById('photon');
+    const eveNode = document.getElementById('eve-node');
+    const bits = this.sim.aliceBits;
+    const bases = this.sim.aliceBases;
+    const states = this.sim.encodedStates;
+    if (!bits.length) { this.photonAnimating = false; return; }
+
+    let idx = 0;
+    const animateOne = () => {
+      if (idx >= bits.length || this.currentStep !== 4) {
+        photon.style.left = '5%';
+        this.photonAnimating = false;
+        return;
+      }
+      const state = states[idx];
+      const basis = bases[idx];
+      const color = basis === '+' ? 'var(--cyan)' : 'var(--gold)';
+      photon.textContent = state;
+      photon.style.background = color;
+      photon.style.boxShadow = `0 0 14px ${color}`;
+      photon.style.left = '5%';
+      photon.className = 'photon';
+
+      // Move to middle (Eve point)
+      setTimeout(() => { photon.style.left = '48%'; }, 50);
+
+      // At Eve point
+      setTimeout(() => {
+        if (this.eveActive && this.sim.eveResults[idx] !== null) {
+          photon.classList.add('eve-intercepted');
+          const eveResult = this.sim.eveResults[idx];
+          const eveBasis = this.sim.eveBases[idx];
+          const newState = this.sim.encode(eveResult, eveBasis);
+          const newColor = eveBasis === '+' ? 'var(--cyan)' : 'var(--gold)';
+          photon.textContent = newState;
+          photon.style.background = newColor;
+          photon.style.boxShadow = `0 0 14px ${newColor}`;
+        }
+      }, 500);
+
+      // Move to Bob
+      setTimeout(() => {
+        photon.classList.remove('eve-intercepted');
+        photon.style.left = '93%';
+      }, 700);
+
+      // Next photon
+      setTimeout(() => {
+        idx++;
+        setTimeout(animateOne, 200);
+      }, 1400);
+    };
+
+    animateOne();
+  },
+
+  /* ── Eve Toggle ── */
+  toggleEve() {
+    const checked = document.getElementById('eve-toggle').checked;
+    if (checked) {
+      this.loadScenario('eve_full');
+    } else {
+      this.loadScenario('ideal');
+    }
+  },
+
+  /* ── Auto Demo ── */
+  toggleAutoDemo() {
+    if (this.autoPlaying) {
+      this.stopAutoDemo();
+    } else {
+      this.startAutoDemo();
+    }
+  },
+
+  startAutoDemo() {
+    this.autoPlaying = true;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = '⏸ 停止演示';
+    btn.classList.add('playing');
+    this.goToStep(1);
+    this.autoAdvance();
+  },
+
+  stopAutoDemo() {
+    this.autoPlaying = false;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = '▶ 自动演示';
+    btn.classList.remove('playing');
+    if (this.autoTimer) clearTimeout(this.autoTimer);
+  },
+
+  autoAdvance() {
+    if (!this.autoPlaying) return;
+    this.autoTimer = setTimeout(() => {
+      if (this.currentStep < 8) {
+        this.nextStep();
+        // Step 4 takes longer for photon animation
+        const delay = this.currentStep === 4 ? 6000 : 3500;
+        this.autoTimer = setTimeout(() => this.autoAdvance(), delay);
+      } else {
+        this.stopAutoDemo();
+        // Offer to show summary
+        setTimeout(() => {
+          if (confirm('演示完成！是否查看安全分析总结？')) {
+            this.showView('summary');
+          }
+        }, 1000);
+      }
+    }, 500);
+  },
+
+  /* ── Summary ── */
+  updateSummary() {
+    // Update QBER display
+    const qberPct = (this.sim.qber * 100).toFixed(1);
+    const displayEl = document.getElementById('qber-display');
+    const statusEl = document.getElementById('qber-status');
+    displayEl.textContent = qberPct + '%';
+    displayEl.className = 'qber-value ' + (this.sim.qber < 0.05 ? 'safe' : this.sim.qber < 0.11 ? 'warning' : 'danger');
+    statusEl.textContent = this.sim.isSecure()
+      ? '✅ 安全 — 未检测到有效窃听'
+      : '⚠️ 不安全 — QBER 超过安全阈值，建议放弃密钥';
+    statusEl.style.color = this.sim.isSecure() ? 'var(--success)' : 'var(--danger)';
+
+    // Update gauge needle
+    const needle = document.getElementById('qber-needle');
+    if (needle) {
+      const angle = -90 + (this.sim.qber / 0.25) * 180; // Map 0-25% to -90 to +90 degrees
+      needle.setAttribute('transform', `rotate(${Math.min(90, Math.max(-90, angle))},100,100)`);
+    }
+
+    // Init mermaid on summary view
+    if (this.currentView === 'summary') {
+      setTimeout(() => this.initMermaid(), 200);
+    }
+  },
+
+  /* ── Modal ── */
+  openPolarizationTutorial() { document.getElementById('modal-pol').classList.add('show'); },
+  closeModal(id) { document.getElementById(id).classList.remove('show'); },
+
+  /* ── Print ── */
+  printFriendly() { window.print(); },
+  hidePrint() { document.getElementById('print-page').style.display = 'none'; },
+
+  /* ── Mode Toggle ── */
+  applyMode() {
+    const isDemo = document.getElementById('mode-switch').checked;
+    document.body.classList.toggle('demo-mode', isDemo);
+    document.body.classList.toggle('learn-mode', !isDemo);
+    // In learn mode, show self-check by default
+    document.getElementById('self-check').style.display = isDemo ? '' : '';
+  },
+
+  /* ── Event Binding ── */
+  bindEvents() {
+    // Nav buttons
+    document.querySelectorAll('.nav-links button').forEach(btn => {
+      btn.addEventListener('click', () => this.showView(btn.dataset.view));
+    });
+
+    // Scenario buttons
+    document.querySelectorAll('.scenario-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.loadScenario(btn.dataset.scenario));
+    });
+
+    // Mode toggle
+    document.getElementById('mode-switch').addEventListener('change', () => this.applyMode());
+
+    // Modal close on overlay click
+    document.getElementById('modal-pol').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) this.closeModal('modal-pol');
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'p' || e.key === 'P') {
+        if (!e.target.closest('input,textarea,[contenteditable]')) {
+          this.printFriendly();
+        }
+      }
+      if (e.key === 'ArrowRight' && this.currentView === 'walkthrough') this.nextStep();
+      if (e.key === 'ArrowLeft' && this.currentView === 'walkthrough') this.prevStep();
+    });
+
+    // Show shortcut hint briefly
+    const hint = document.getElementById('shortcut-hint');
+    setTimeout(() => hint.classList.add('visible'), 2000);
+    setTimeout(() => hint.classList.remove('visible'), 10000);
+
+    // Clean up auto demo on view switch
+    document.querySelectorAll('.nav-links button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this.autoPlaying) this.stopAutoDemo();
+      });
+    });
+
+    // Eve toggle
+    document.getElementById('eve-toggle').addEventListener('change', () => this.toggleEve());
+  }
+};
+
+/* ════════════════════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => BB84App.init());
+</script>
+
+</body>
+</html>
